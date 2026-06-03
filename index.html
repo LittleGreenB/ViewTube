@@ -1,0 +1,824 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>YouTube — Long-form tracker</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Courier+Prime:ital,wght@0,400;0,700;1,400&family=IBM+Plex+Mono:wght@400;600&display=swap');
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --red: #c0392b;
+  --red-dark: #96281b;
+  --red-light: #fdf0ef;
+  --ink: #1a1a1a;
+  --ink2: #4a4a4a;
+  --ink3: #888;
+  --border: #d0cfc9;
+  --bg: #f7f5f0;
+  --card: #ffffff;
+  --surface: #f0ede6;
+  --font-mono: 'IBM Plex Mono', monospace;
+  --font-serif: 'Courier Prime', monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --red-light: #2a1a19;
+    --ink: #f0ede4;
+    --ink2: #b0ada4;
+    --ink3: #666;
+    --border: #3a3935;
+    --bg: #1a1917;
+    --card: #232220;
+    --surface: #2a2926;
+  }
+}
+
+html { font-size: 16px; }
+body {
+  font-family: var(--font-serif);
+  background: var(--bg);
+  color: var(--ink);
+  min-height: 100vh;
+  padding: 0;
+}
+
+/* ── MASTHEAD ── */
+.masthead {
+  background: var(--card);
+  border-bottom: 3px double var(--border);
+  padding: 2rem 1rem 1.5rem;
+  text-align: center;
+}
+.masthead-inner { max-width: 760px; margin: 0 auto; }
+.site-name {
+  font-size: clamp(2rem, 6vw, 3.2rem);
+  font-weight: 700;
+  letter-spacing: -2px;
+  line-height: 1;
+  color: var(--ink);
+  word-break: break-word;
+}
+.site-name span { color: var(--red); }
+.site-kicker {
+  font-family: var(--font-mono);
+  font-size: .65rem;
+  letter-spacing: .25em;
+  text-transform: uppercase;
+  color: var(--ink3);
+  margin-top: .4rem;
+}
+.site-tagline {
+  font-style: italic;
+  color: var(--ink2);
+  font-size: .9rem;
+  margin-top: .75rem;
+}
+
+/* ── LAYOUT ── */
+.container { max-width: 760px; margin: 0 auto; padding: 1.5rem 1rem 3rem; }
+
+/* ── API SETUP ── */
+.setup-box {
+  background: var(--red-light);
+  border: 1.5px solid var(--red);
+  border-radius: 6px;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+.setup-box h2 {
+  font-family: var(--font-mono);
+  font-size: .75rem;
+  font-weight: 600;
+  letter-spacing: .15em;
+  text-transform: uppercase;
+  color: var(--red);
+  margin-bottom: 1rem;
+}
+.setup-box h2.spaced { margin-top: 1.75rem; }
+.field-label {
+  font-family: var(--font-mono);
+  font-size: .7rem;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--ink2);
+  margin-bottom: .5rem;
+  display: block;
+}
+.field-hint {
+  font-size: .78rem;
+  color: var(--ink2);
+  line-height: 1.55;
+  margin-top: .5rem;
+}
+.step {
+  display: flex;
+  gap: .75rem;
+  margin-bottom: .75rem;
+  font-size: .82rem;
+  color: var(--ink2);
+  line-height: 1.55;
+}
+.step-num {
+  background: var(--red);
+  color: #fff;
+  width: 20px; height: 20px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: .68rem;
+  font-weight: 700;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.step a { color: var(--red); }
+.step code {
+  background: rgba(0,0,0,.07);
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: .78rem;
+  font-family: var(--font-mono);
+}
+.input-row {
+  display: flex;
+  gap: .5rem;
+  margin-top: 1.25rem;
+}
+.api-input {
+  flex: 1;
+  font-family: var(--font-mono);
+  font-size: .85rem;
+  padding: .55rem .8rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--card);
+  color: var(--ink);
+  outline: none;
+  transition: border-color .15s;
+}
+.api-input:focus { border-color: var(--red); }
+.btn {
+  font-family: var(--font-mono);
+  font-size: .75rem;
+  font-weight: 600;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  padding: .55rem 1.1rem;
+  background: var(--red);
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background .15s;
+  white-space: nowrap;
+}
+.btn:hover { background: var(--red-dark); }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+.btn-outline {
+  background: transparent;
+  color: var(--ink2);
+  border: 1px solid var(--border);
+}
+.btn-outline:hover { background: var(--surface); }
+.status-line {
+  font-family: var(--font-mono);
+  font-size: .73rem;
+  color: var(--ink3);
+  margin-top: .6rem;
+  min-height: 1.1em;
+}
+.status-line.err { color: var(--red); }
+
+/* ── PROGRESS ── */
+.progress-wrap {
+  background: var(--border);
+  border-radius: 3px;
+  height: 4px;
+  margin-top: .75rem;
+  overflow: hidden;
+  display: none;
+}
+.progress-bar {
+  height: 100%;
+  background: var(--red);
+  width: 0%;
+  transition: width .3s;
+}
+
+/* ── DASHBOARD ── */
+.dashboard { display: none; }
+
+.section-rule {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 1.5rem 0;
+}
+.section-rule.double { border-top: 3px double var(--border); }
+
+/* tabs */
+.tabs {
+  display: flex;
+  gap: 0;
+  margin-bottom: 1.25rem;
+  border-bottom: 1px solid var(--border);
+}
+.tab {
+  font-family: var(--font-mono);
+  font-size: .68rem;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  padding: .45rem .9rem;
+  cursor: pointer;
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: 4px 4px 0 0;
+  color: var(--ink3);
+  background: transparent;
+  margin-bottom: -1px;
+  transition: color .1s;
+}
+.tab:hover { color: var(--ink2); }
+.tab.active {
+  border-color: var(--border);
+  border-bottom-color: var(--bg);
+  background: var(--bg);
+  color: var(--ink);
+}
+
+/* metrics */
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: .75rem;
+  margin-bottom: 1.5rem;
+}
+.metric-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 1rem;
+  text-align: center;
+}
+.metric-val {
+  font-family: var(--font-mono);
+  font-size: 1.75rem;
+  font-weight: 600;
+  color: var(--ink);
+  line-height: 1;
+}
+.metric-val.red { color: var(--red); }
+.metric-label {
+  font-family: var(--font-mono);
+  font-size: .62rem;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--ink3);
+  margin-top: .4rem;
+}
+
+/* chart */
+.chart-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: .5rem;
+  margin-bottom: .75rem;
+}
+.chart-label {
+  font-family: var(--font-mono);
+  font-size: .7rem;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--ink3);
+}
+.toggles { display: flex; gap: .4rem; flex-wrap: wrap; }
+.toggle-btn {
+  font-family: var(--font-mono);
+  font-size: .65rem;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  padding: .3rem .65rem;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  cursor: pointer;
+  color: var(--ink3);
+  background: transparent;
+  transition: all .15s;
+}
+.toggle-btn.on { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.chart-wrap { position: relative; width: 100%; height: 260px; margin-bottom: .5rem; }
+.chart-legend {
+  display: flex;
+  gap: 1.25rem;
+  margin-bottom: 1rem;
+  font-family: var(--font-mono);
+  font-size: .68rem;
+  color: var(--ink3);
+}
+.legend-dot {
+  display: inline-block;
+  width: 10px; height: 10px;
+  border-radius: 2px;
+  margin-right: 4px;
+  vertical-align: middle;
+}
+
+/* table */
+.table-section h3 {
+  font-family: var(--font-mono);
+  font-size: .68rem;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--ink3);
+  margin-bottom: .75rem;
+}
+.table-scroll { overflow-x: auto; }
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-mono);
+  font-size: .75rem;
+}
+thead th {
+  text-align: left;
+  font-size: .62rem;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--ink3);
+  border-bottom: 1px solid var(--border);
+  padding: .4rem .5rem;
+  font-weight: 400;
+}
+tbody td {
+  padding: .45rem .5rem;
+  border-bottom: .5px solid var(--border);
+  color: var(--ink2);
+  vertical-align: middle;
+}
+tbody tr:hover td { background: var(--surface); }
+tbody td:first-child { color: var(--ink); }
+.badge {
+  display: inline-block;
+  font-size: .6rem;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-weight: 600;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  font-family: var(--font-mono);
+}
+.badge-long { background: #eafaf1; color: #1e7040; }
+.badge-short { background: #e8f4fd; color: #1a6fa0; }
+@media (prefers-color-scheme: dark) {
+  .badge-long { background: #1a2d22; color: #52be80; }
+  .badge-short { background: #1a2f3d; color: #5dade2; }
+}
+
+/* footer */
+.footer {
+  border-top: 3px double var(--border);
+  padding-top: 1rem;
+  margin-top: 2rem;
+  font-size: .68rem;
+  color: var(--ink3);
+  text-align: center;
+  line-height: 2;
+}
+.footer a { color: var(--ink3); }
+
+.actions { display: flex; gap: .5rem; margin: 1rem 0; flex-wrap: wrap; }
+
+/* word cloud placeholder */
+.wordcloud-wrap {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 1rem;
+  margin-bottom: 1.5rem;
+  min-height: 80px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: .4rem .6rem;
+  align-items: center;
+}
+.wc-word {
+  font-family: var(--font-mono);
+  color: var(--ink2);
+  cursor: default;
+  transition: color .1s;
+}
+.wc-word:hover { color: var(--red); }
+</style>
+</head>
+<body>
+
+<div class="masthead">
+  <div class="masthead-inner">
+    <div class="site-name" id="site-name">YouTube <span>tracker</span></div>
+    <div class="site-kicker">Long-form tracker · Shorts stripped</div>
+    <div class="site-tagline">Watching the numbers behind the content — updated on demand</div>
+  </div>
+</div>
+
+<div class="container">
+
+  <!-- Setup -->
+  <div class="setup-box" id="setup-box">
+
+    <h2>▸ Which channel?</h2>
+    <label class="field-label" for="channel-input">YouTube channel handle, name, or URL</label>
+    <div class="input-row" style="margin-top:0;">
+      <input class="api-input" id="channel-input" type="text" placeholder="e.g. friendlyjordies" autocomplete="off" />
+    </div>
+    <div class="field-hint">Enter a channel handle (e.g. <code>friendlyjordies</code>), the channel name, or paste a channel URL. We'll search YouTube for the best match.</div>
+
+    <h2 class="spaced">⚙ Get your free YouTube API key</h2>
+    <div class="step"><div class="step-num">1</div><div>Go to <a href="https://console.cloud.google.com/" target="_blank">console.cloud.google.com</a> and sign in with Google.</div></div>
+    <div class="step"><div class="step-num">2</div><div>Click <strong>Select a project → New Project</strong>. Name it anything (e.g. <code>yt-tracker</code>) and click <strong>Create</strong>.</div></div>
+    <div class="step"><div class="step-num">3</div><div>Go to <strong>APIs &amp; Services → Library</strong>, search <code>YouTube Data API v3</code>, click <strong>Enable</strong>.</div></div>
+    <div class="step"><div class="step-num">4</div><div>Go to <strong>APIs &amp; Services → Credentials → Create Credentials → API key</strong>. Copy the key.</div></div>
+    <div class="step"><div class="step-num">5</div><div>Paste it below and click <strong>Load data</strong>. Your key stays in this file only — never sent anywhere except YouTube.</div></div>
+    <div class="input-row">
+      <input class="api-input" id="api-key" type="password" placeholder="AIzaSy..." autocomplete="off" />
+      <button class="btn" id="load-btn" onclick="loadData()">Load data</button>
+    </div>
+    <div class="progress-wrap" id="prog-wrap"><div class="progress-bar" id="prog-bar"></div></div>
+    <div class="status-line" id="status">Enter a channel and paste your API key above to begin.</div>
+  </div>
+
+  <!-- Dashboard -->
+  <div class="dashboard" id="dashboard">
+
+    <div class="tabs">
+      <div class="tab active" onclick="setTab(this,'ytd')">YTD</div>
+      <div class="tab" onclick="setTab(this,'12m')">Last 12 months</div>
+      <div class="tab" onclick="setTab(this,'24m')">Last 24 months</div>
+      <div class="tab" onclick="setTab(this,'all')">All time</div>
+    </div>
+
+    <div class="metrics" id="metrics"></div>
+
+    <div class="chart-header">
+      <div class="chart-label">Monthly upload trend</div>
+      <div class="toggles">
+        <button class="toggle-btn on" id="tog-long" onclick="toggleSeries('long')">Long-form</button>
+        <button class="toggle-btn on" id="tog-short" onclick="toggleSeries('short')">Shorts</button>
+      </div>
+    </div>
+    <div class="chart-wrap">
+      <canvas id="main-chart" role="img" aria-label="Monthly video uploads, split by long-form and Shorts">Monthly upload data.</canvas>
+    </div>
+    <div class="chart-legend">
+      <span><span class="legend-dot" style="background:#c0392b"></span>Long-form</span>
+      <span><span class="legend-dot" style="background:#bbb;"></span>Shorts</span>
+    </div>
+
+    <hr class="section-rule">
+
+    <div class="table-section">
+      <h3>▸ Title word cloud</h3>
+      <div class="wordcloud-wrap" id="wordcloud"></div>
+    </div>
+
+    <hr class="section-rule">
+
+    <div class="table-section">
+      <h3>Monthly breakdown</h3>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>Month</th><th>Long-form</th><th>Shorts</th><th>Long-form views</th><th>Total views</th><th>Uploads</th></tr></thead>
+          <tbody id="monthly-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <hr class="section-rule">
+
+    <div class="table-section">
+      <h3>Recent videos</h3>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>Title</th><th>Type</th><th>Published</th><th>Views</th><th>Likes</th><th>Duration</th></tr></thead>
+          <tbody id="videos-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button class="btn btn-outline" onclick="exportCSV()">↓ Download CSV</button>
+      <button class="btn btn-outline" onclick="resetDashboard()">← Change channel / API key</button>
+    </div>
+
+  </div><!-- /dashboard -->
+
+  <div class="footer">
+    Data loaded live from the <a href="https://developers.google.com/youtube/v3">YouTube Data API v3</a>.
+    Shorts defined as videos ≤ 3 minutes.<br>
+    <a href="https://www.youtube.com/t/terms">YouTube Terms of Service</a> &middot;
+    <a href="https://policies.google.com/privacy">Google Privacy Policy</a>
+  </div>
+
+</div><!-- /container -->
+
+<script>
+let channelQuery = '';
+let channelName = '';
+let allVideos = [];
+let chartInst = null;
+let showLong = true, showShort = true;
+let currentTab = 'ytd';
+
+/* ── helpers ── */
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function setMasthead(name) {
+  document.getElementById('site-name').textContent = name;
+  document.title = name + ' — Long-form tracker';
+}
+function isShort(duration) {
+  const m = (duration||'').match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
+  if (!m) return true;
+  const secs = (parseInt(m[1]||0)*3600) + (parseInt(m[2]||0)*60) + parseInt(m[3]||0);
+  return secs <= 180;
+}
+function fmtNum(n) {
+  if (n >= 1e6) return (n/1e6).toFixed(1)+'M';
+  if (n >= 1e3) return (n/1e3).toFixed(1)+'K';
+  return String(n);
+}
+function fmtDur(d) {
+  const m = (d||'').match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
+  if (!m) return '—';
+  const h = parseInt(m[1]||0), mn = parseInt(m[2]||0), s = parseInt(m[3]||0);
+  if (h) return h+'h '+mn+'m';
+  return mn+'m '+String(s).padStart(2,'0')+'s';
+}
+function setStatus(msg, isErr=false) {
+  const el = document.getElementById('status');
+  el.textContent = msg;
+  el.className = 'status-line' + (isErr ? ' err' : '');
+}
+function setProgress(pct) {
+  document.getElementById('prog-wrap').style.display = 'block';
+  document.getElementById('prog-bar').style.width = pct + '%';
+}
+
+/* ── load ── */
+async function loadData() {
+  channelQuery = document.getElementById('channel-input').value.trim();
+  const key = document.getElementById('api-key').value.trim();
+  if (!channelQuery) { setStatus('Please enter a channel first.', true); return; }
+  if (!key) { setStatus('Please paste your API key first.', true); return; }
+  document.getElementById('load-btn').disabled = true;
+  setProgress(5);
+  setStatus('Searching for channel…');
+
+  try {
+    // 1. resolve channel handle/name → channelId
+    const srRes = await fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&type=channel&q=${encodeURIComponent(channelQuery)}&maxResults=5&key=${key}`);
+    const srData = await srRes.json();
+    if (srData.error) throw new Error(srData.error.message);
+    if (!srData.items || !srData.items.length) throw new Error('Channel not found. Check the handle or name.');
+    const channelId = srData.items[0].snippet.channelId || srData.items[0].id.channelId;
+    setProgress(15); setStatus('Found channel. Loading playlist…');
+
+    // 2. get uploads playlist + channel info
+    const chRes = await fetch(`https://www.googleapis.com/youtube/v3/channels?part=contentDetails,statistics,snippet&id=${channelId}&key=${key}`);
+    const chData = await chRes.json();
+    if (chData.error) throw new Error(chData.error.message);
+    const uploadsId = chData.items[0].contentDetails.relatedPlaylists.uploads;
+
+    // set masthead to the official channel title from the API
+    channelName = chData.items[0].snippet.title || channelQuery;
+    setMasthead(channelName);
+
+    // 3. page through playlist
+    allVideos = [];
+    let pageToken = '';
+    let page = 0;
+    const totalSubs = parseInt(chData.items[0].statistics.videoCount||500);
+    do {
+      page++;
+      const pct = Math.min(90, 15 + Math.round((allVideos.length / Math.max(totalSubs,1)) * 70));
+      setProgress(pct);
+      setStatus(`Loading videos… (${allVideos.length} so far)`);
+      const plUrl = `https://www.googleapis.com/youtube/v3/playlistItems?part=contentDetails&playlistId=${uploadsId}&maxResults=50&key=${key}${pageToken ? '&pageToken='+pageToken : ''}`;
+      const plRes = await fetch(plUrl);
+      const plData = await plRes.json();
+      if (plData.error) throw new Error(plData.error.message);
+
+      const ids = plData.items.map(i => i.contentDetails.videoId).join(',');
+      const vRes = await fetch(`https://www.googleapis.com/youtube/v3/videos?part=snippet,contentDetails,statistics&id=${ids}&key=${key}`);
+      const vData = await vRes.json();
+      if (vData.error) throw new Error(vData.error.message);
+
+      vData.items.forEach(v => {
+        allVideos.push({
+          id: v.id,
+          title: v.snippet.title,
+          published: v.snippet.publishedAt,
+          views: parseInt(v.statistics.viewCount||0),
+          likes: parseInt(v.statistics.likeCount||0),
+          duration: v.contentDetails.duration,
+          short: isShort(v.contentDetails.duration)
+        });
+      });
+      pageToken = plData.nextPageToken || '';
+    } while (pageToken && page < 30);
+
+    setProgress(100);
+    setStatus(`Loaded ${allVideos.length} videos. ✓`);
+    document.getElementById('setup-box').style.display = 'none';
+    document.getElementById('dashboard').style.display = 'block';
+    renderDashboard();
+
+  } catch(e) {
+    setStatus('Error: ' + e.message, true);
+    document.getElementById('load-btn').disabled = false;
+    setProgress(0);
+    document.getElementById('prog-wrap').style.display = 'none';
+  }
+}
+
+/* ── tab ── */
+function setTab(el, tab) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  currentTab = tab;
+  renderDashboard();
+}
+
+function filterByTab(vids) {
+  const now = new Date();
+  return vids.filter(v => {
+    const pub = new Date(v.published);
+    if (currentTab === 'ytd') return pub.getFullYear() === now.getFullYear();
+    if (currentTab === '12m') { const c=new Date(now); c.setFullYear(now.getFullYear()-1); return pub>=c; }
+    if (currentTab === '24m') { const c=new Date(now); c.setFullYear(now.getFullYear()-2); return pub>=c; }
+    return true;
+  });
+}
+
+/* ── main render ── */
+function renderDashboard() {
+  const vids = filterByTab(allVideos);
+  const long = vids.filter(v => !v.short);
+  const shorts = vids.filter(v => v.short);
+  const longViews = long.reduce((a,v) => a+v.views, 0);
+  const totalViews = vids.reduce((a,v) => a+v.views, 0);
+  const avgLong = long.length ? Math.round(longViews/long.length) : 0;
+
+  document.getElementById('metrics').innerHTML = `
+    <div class="metric-card"><div class="metric-val">${fmtNum(long.length)}</div><div class="metric-label">Long-form videos</div></div>
+    <div class="metric-card"><div class="metric-val">${fmtNum(shorts.length)}</div><div class="metric-label">Shorts</div></div>
+    <div class="metric-card"><div class="metric-val red">${fmtNum(longViews)}</div><div class="metric-label">Long-form views</div></div>
+    <div class="metric-card"><div class="metric-val">${fmtNum(totalViews)}</div><div class="metric-label">Total views (inc. Shorts)</div></div>
+    <div class="metric-card"><div class="metric-val">${fmtNum(avgLong)}</div><div class="metric-label">Avg views / long-form</div></div>
+  `;
+
+  renderChart(vids);
+  renderMonthly(vids);
+  renderVideos(vids);
+  renderWordCloud(vids);
+}
+
+/* ── chart ── */
+function toggleSeries(s) {
+  if (s === 'long') { showLong = !showLong; document.getElementById('tog-long').classList.toggle('on', showLong); }
+  else { showShort = !showShort; document.getElementById('tog-short').classList.toggle('on', showShort); }
+  renderChart(filterByTab(allVideos));
+}
+
+function renderChart(vids) {
+  const months = {};
+  vids.forEach(v => {
+    const d = new Date(v.published);
+    const key = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+    if (!months[key]) months[key] = { long:0, short:0 };
+    v.short ? months[key].short++ : months[key].long++;
+  });
+  const keys = Object.keys(months).sort();
+  const labels = keys.map(k => {
+    const [y,m] = k.split('-');
+    return new Date(y, m-1).toLocaleDateString('en', { month:'short', year:'2-digit' });
+  });
+  const datasets = [];
+  if (showLong) datasets.push({ label:'Long-form', data:keys.map(k=>months[k].long), borderColor:'#c0392b', backgroundColor:'rgba(192,57,43,.12)', tension:.3, fill:true, pointRadius:3, pointHoverRadius:5, borderWidth:2 });
+  if (showShort) datasets.push({ label:'Shorts', data:keys.map(k=>months[k].short), borderColor:'#aaa', backgroundColor:'rgba(150,150,150,.08)', tension:.3, fill:false, pointRadius:2, borderWidth:1.5, borderDash:[5,4] });
+  const isDark = matchMedia('(prefers-color-scheme:dark)').matches;
+  const gridColor = isDark ? 'rgba(255,255,255,.06)' : 'rgba(0,0,0,.05)';
+  const tickColor = isDark ? '#666' : '#999';
+  if (chartInst) { chartInst.destroy(); }
+  chartInst = new Chart(document.getElementById('main-chart'), {
+    type: 'line',
+    data: { labels, datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: tickColor, font: { size: 10, family: "'IBM Plex Mono'" }, maxRotation:45, autoSkip: keys.length > 24 }, grid: { color: gridColor } },
+        y: { beginAtZero: true, ticks: { color: tickColor, font: { size: 10, family: "'IBM Plex Mono'" }, precision:0 }, grid: { color: gridColor } }
+      }
+    }
+  });
+}
+
+/* ── monthly table ── */
+function renderMonthly(vids) {
+  const months = {};
+  vids.forEach(v => {
+    const d = new Date(v.published);
+    const key = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+    if (!months[key]) months[key] = { long:0, short:0, longViews:0, totalViews:0, total:0 };
+    if (v.short) { months[key].short++; } else { months[key].long++; months[key].longViews+=v.views; }
+    months[key].totalViews += v.views; months[key].total++;
+  });
+  const keys = Object.keys(months).sort().reverse();
+  document.getElementById('monthly-body').innerHTML = keys.map(k => {
+    const [y,m] = k.split('-');
+    const label = new Date(y, m-1).toLocaleDateString('en', { month:'long', year:'numeric' });
+    const r = months[k];
+    return `<tr><td>${label}</td><td>${r.long}</td><td>${r.short}</td><td>${fmtNum(r.longViews)}</td><td>${fmtNum(r.totalViews)}</td><td>${r.total}</td></tr>`;
+  }).join('');
+}
+
+/* ── video list ── */
+function renderVideos(vids) {
+  const sorted = [...vids].sort((a,b) => new Date(b.published)-new Date(a.published)).slice(0, 100);
+  document.getElementById('videos-body').innerHTML = sorted.map(v => {
+    const pub = new Date(v.published).toLocaleDateString('en', { day:'numeric', month:'short', year:'numeric' });
+    const title = v.title.length > 60 ? v.title.slice(0,57)+'…' : v.title;
+    const badge = v.short ? '<span class="badge badge-short">Short</span>' : '<span class="badge badge-long">Long</span>';
+    return `<tr>
+      <td><a href="https://youtube.com/watch?v=${v.id}" target="_blank" style="color:inherit;text-decoration:none">${escapeHtml(title)}</a></td>
+      <td>${badge}</td>
+      <td>${pub}</td>
+      <td>${fmtNum(v.views)}</td>
+      <td>${fmtNum(v.likes)}</td>
+      <td>${fmtDur(v.duration)}</td>
+    </tr>`;
+  }).join('');
+}
+
+/* ── word cloud ── */
+function renderWordCloud(vids) {
+  const STOP = new Set(['the','a','an','and','or','but','in','on','at','to','of','for','with','is','was','are','were','be','been','i','my','me','you','your','it','its','this','that','he','she','we','they','do','did','have','has','had','not','so','if','by','as','from','up','out','how','what','when','why','who']);
+  const freq = {};
+  vids.filter(v => !v.short).forEach(v => {
+    v.title.toLowerCase().replace(/[^a-z0-9\s]/g,'').split(/\s+/).forEach(w => {
+      if (w.length > 2 && !STOP.has(w)) freq[w] = (freq[w]||0)+1;
+    });
+  });
+  const sorted = Object.entries(freq).sort((a,b)=>b[1]-a[1]).slice(0,50);
+  const max = sorted[0]?.[1]||1;
+  const wc = document.getElementById('wordcloud');
+  wc.innerHTML = sorted.map(([w,c]) => {
+    const size = Math.round(11 + (c/max)*22);
+    const opacity = .45 + (c/max)*.55;
+    return `<span class="wc-word" style="font-size:${size}px;opacity:${opacity}" title="${c} uses">${escapeHtml(w)}</span>`;
+  }).join('');
+}
+
+/* ── export ── */
+function exportCSV() {
+  const vids = filterByTab(allVideos);
+  const rows = [['Title','Type','Published','Views','Likes','Duration','URL']];
+  vids.forEach(v => {
+    rows.push([
+      `"${v.title.replace(/"/g,'""')}"`,
+      v.short ? 'Short' : 'Long-form',
+      v.published.slice(0,10),
+      v.views, v.likes,
+      fmtDur(v.duration),
+      `https://youtube.com/watch?v=${v.id}`
+    ]);
+  });
+  const blob = new Blob([rows.map(r=>r.join(',')).join('\n')], {type:'text/csv'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  const safeName = (channelName || 'channel').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
+  a.download = `${safeName}-${currentTab}.csv`;
+  a.click();
+}
+
+function resetDashboard() {
+  allVideos = [];
+  document.getElementById('dashboard').style.display = 'none';
+  document.getElementById('setup-box').style.display = 'block';
+  document.getElementById('load-btn').disabled = false;
+  document.getElementById('prog-wrap').style.display = 'none';
+  setMasthead('YouTube tracker');
+  document.getElementById('site-name').innerHTML = 'YouTube <span>tracker</span>';
+  setStatus('Enter a channel and paste your API key above to begin.');
+}
+
+document.getElementById('api-key').addEventListener('keydown', e => { if (e.key==='Enter') loadData(); });
+document.getElementById('channel-input').addEventListener('keydown', e => { if (e.key==='Enter') document.getElementById('api-key').focus(); });
+</script>
+</body>
+</html>
